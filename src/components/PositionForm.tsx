@@ -274,9 +274,34 @@ export default function PositionForm() {
       {/* Position Data Display */}
       {positionData && (
         <div className="mt-8 bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            Position Details
-          </h3>
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* NFT Image */}
+            {positionData.nftMetadata?.image && (
+              <div className="lg:w-1/3">
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Position NFT</h4>
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
+                  <div 
+                    className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-600"
+                    dangerouslySetInnerHTML={{ 
+                      __html: positionData.nftMetadata.image.startsWith('data:image/svg+xml;base64,') 
+                        ? atob(positionData.nftMetadata.image.replace('data:image/svg+xml;base64,', ''))
+                        : positionData.nftMetadata.image
+                    }}
+                  />
+                  {positionData.nftMetadata.name && (
+                    <div className="mt-2 text-sm font-medium text-gray-900 dark:text-white text-center">
+                      {positionData.nftMetadata.name}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Position Details */}
+            <div className="flex-1">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                Position Details
+              </h3>
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="text-sm text-gray-600 dark:text-gray-400">Position ID:</span>
@@ -353,6 +378,8 @@ export default function PositionForm() {
               </div>
             )}
           </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -368,6 +395,7 @@ export default function PositionForm() {
             <div>Has poolKey: {positionData.poolKey ? 'Yes' : 'No'}</div>
             <div>Has positionInfo: {positionData.positionInfo ? 'Yes' : 'No'}</div>
             <div>Has liquidity: {positionData.liquidity ? 'Yes' : 'No'}</div>
+            <div>Has NFT metadata: {positionData.nftMetadata ? 'Yes' : 'No'}</div>
             {positionData.decreaseSimulation && (
               <div>Simulation success: {positionData.decreaseSimulation.success ? 'Yes' : 'No'}</div>
             )}

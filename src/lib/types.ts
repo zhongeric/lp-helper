@@ -23,6 +23,13 @@ export interface ParsedPositionInfo {
   poolId: string; // 200 bits - truncated poolId (bytes25)
 }
 
+// NFT Metadata from tokenURI
+export interface NFTMetadata {
+  name: string;
+  description: string;
+  image: string; // SVG data URI
+}
+
 export interface PositionData {
   id: string;
   protocol: 'v3' | 'v4';
@@ -31,6 +38,7 @@ export interface PositionData {
   positionInfo?: ParsedPositionInfo;
   liquidity?: string; // uint128 as string
   decreaseSimulation?: DecreaseLiquidityResponse;
+  nftMetadata?: NFTMetadata;
   // Legacy fields for compatibility
   token0?: string;
   token1?: string;

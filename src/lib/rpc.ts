@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { PositionData, PoolAndPositionInfo, ParsedPositionInfo, V4ContractAddresses } from './types';
+import { PositionData, PoolAndPositionInfo, ParsedPositionInfo, V4ContractAddresses, NFTMetadata } from './types';
 import { CHAIN_TO_ADDRESSES_MAP } from '@uniswap/sdk-core';
 import { tradingApiClient } from './trading-api';
 import { DecreaseLiquidityRequest } from './trading-api-types';
@@ -105,7 +105,7 @@ async function fetchV4PositionDetails(
   }
 
   try {
-    // Make both RPC calls in parallel for better performance
+    // Make core RPC calls in parallel for better performance
     const [poolAndPositionInfo, liquidity] = await Promise.all([
       getPoolAndPositionInfo(positionId, chainId, positionManagerAddress),
       getPositionLiquidity(positionId, chainId, positionManagerAddress)
@@ -114,6 +114,16 @@ async function fetchV4PositionDetails(
     // Parse the position info
     const parsedPositionInfo = parsePositionInfo(poolAndPositionInfo.info);
     
+    // Try to fetch NFT metadata separately to avoid failing the entire request
+    let nftMetadata: NFTMetadata | undefined;
+    try {
+      const tokenURI = await getTokenURI(positionId, chainId, positionManagerAddress);
+      nftMetadata = parseNFTMetadata(tokenURI) || undefined;
+    } catch (nftError) {
+      console.warn('Failed to fetch NFT metadata:', nftError);
+      // Continue without NFT metadata
+    }
+    
     return {
       id: positionId,
       protocol: 'v4',
@@ -121,6 +131,7 @@ async function fetchV4PositionDetails(
       poolKey: poolAndPositionInfo.poolKey,
       positionInfo: parsedPositionInfo,
       liquidity,
+      nftMetadata,
       // Map to legacy fields for compatibility
       token0: poolAndPositionInfo.poolKey.currency0,
       token1: poolAndPositionInfo.poolKey.currency1,
@@ -163,6 +174,13 @@ const V4_POSITION_MANAGER_ABI = [
     "stateMutability": "view",
     "type": "function",
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}]
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+    "name": "tokenURI",
+    "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+    "stateMutability": "view",
+    "type": "function"
   }
 ];
 
@@ -226,6 +244,73 @@ async function getPositionLiquidity(
   
   // Return liquidity as string to preserve precision
   return decodedResult.liquidity.toString();
+}
+
+async function getTokenURI(
+  positionId: string,
+  chainId: number,
+  positionManagerAddress: string
+): Promise<string> {
+  try {
+    console.log('Fetching tokenURI for:', { positionId, chainId, positionManagerAddress });
+    
+    // Create contract interface
+    const contractInterface = new ethers.Interface(V4_POSITION_MANAGER_ABI);
+    
+    // Encode the function call data
+    const callData = contractInterface.encodeFunctionData('tokenURI', [positionId]);
+    console.log('TokenURI call data:', callData);
+    
+    // Make the eth_call
+    const result = await makeRpcCall(chainId, 'eth_call', [
+      {
+        to: positionManagerAddress,
+        data: callData,
+      },
+      'latest'
+    ]);
+    
+    console.log('TokenURI raw result:', result);
+    
+    // Decode the result
+    const decodedResult = contractInterface.decodeFunctionResult('tokenURI', result);
+    
+    console.log('TokenURI decoded result:', decodedResult);
+    
+    // Return the URI string
+    return decodedResult[0];
+  } catch (error) {
+    console.error('Error fetching tokenURI:', error);
+    throw error;
+  }
+}
+
+function parseNFTMetadata(tokenURI: string): NFTMetadata | null {
+  try {
+    // Check if it's a data URI with base64 encoding
+    if (!tokenURI.startsWith('data:application/json;base64,')) {
+      console.warn('Unexpected tokenURI format:', tokenURI);
+      return null;
+    }
+    
+    // Extract base64 content
+    const base64Content = tokenURI.replace('data:application/json;base64,', '');
+    
+    // Decode base64
+    const jsonString = atob(base64Content);
+    
+    // Parse JSON
+    const metadata = JSON.parse(jsonString);
+    
+    return {
+      name: metadata.name || '',
+      description: metadata.description || '',
+      image: metadata.image || ''
+    };
+  } catch (error) {
+    console.error('Error parsing NFT metadata:', error);
+    return null;
+  }
 }
 
 function parsePositionInfo(infoHex: string): ParsedPositionInfo {
