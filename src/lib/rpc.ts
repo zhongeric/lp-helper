@@ -1,6 +1,8 @@
 import { ethers } from 'ethers';
 import { PositionData, PoolAndPositionInfo, ParsedPositionInfo, V4ContractAddresses } from './types';
 import { CHAIN_TO_ADDRESSES_MAP } from '@uniswap/sdk-core';
+import { tradingApiClient } from './trading-api';
+import { DecreaseLiquidityRequest } from './trading-api-types';
 
 const RPC_URLS: Record<number, string> = {
   1: process.env.NEXT_PUBLIC_MAINNET_RPC_URL || '', // Mainnet
@@ -306,4 +308,81 @@ export function getV4ContractAddress(
   }
 
   return address;
+}
+
+// Helper function to create Trading API request from position data
+function createDecreaseLiquidityRequest(
+  positionData: PositionData,
+  walletAddress: string,
+  liquidityPercentageToDecrease: number = 100
+): DecreaseLiquidityRequest {
+  if (!positionData.poolKey || !positionData.positionInfo || !positionData.liquidity) {
+    throw new Error('Insufficient position data for Trading API request');
+  }
+
+  return {
+    simulateTransaction: true,
+    protocol: 'V4',
+    tokenId: parseInt(positionData.id),
+    chainId: positionData.chainId,
+    walletAddress,
+    liquidityPercentageToDecrease,
+    positionLiquidity: positionData.liquidity,
+    position: {
+      tickLower: positionData.positionInfo.tickLower,
+      tickUpper: positionData.positionInfo.tickUpper,
+      pool: {
+        token0: positionData.poolKey.currency0,
+        token1: positionData.poolKey.currency1,
+        fee: positionData.poolKey.fee,
+        tickSpacing: positionData.poolKey.tickSpacing,
+        hooks: positionData.poolKey.hooks,
+      },
+    },
+  };
+}
+
+// Enhanced position fetching with Trading API integration
+export async function fetchPositionDetailsWithSimulation(
+  positionId: string,
+  protocolVersion: 'v3' | 'v4',
+  chainId: number,
+  walletAddress?: string,
+  liquidityPercentage: number = 100
+): Promise<PositionData> {
+  // First, fetch the basic position data
+  const positionData = await fetchPositionDetails(positionId, protocolVersion, chainId);
+  
+  // If wallet address is provided and it's V4, fetch decrease liquidity simulation
+  if (walletAddress && protocolVersion === 'v4' && positionData.poolKey && positionData.positionInfo && positionData.liquidity) {
+    try {
+      console.log('Attempting Trading API call with:', {
+        positionId,
+        walletAddress,
+        liquidityPercentage,
+        chainId
+      });
+      
+      const tradingApiRequest = createDecreaseLiquidityRequest(positionData, walletAddress, liquidityPercentage);
+      const simulation = await tradingApiClient.decreaseLiquidity(tradingApiRequest);
+      
+      console.log('Trading API response:', simulation);
+      positionData.decreaseSimulation = simulation;
+    } catch (error) {
+      console.error('Error fetching decrease liquidity simulation:', error);
+      // Don't fail the entire request if Trading API fails
+      positionData.decreaseSimulation = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Trading API simulation failed',
+        requestId: '',
+        decrease: {} as any,
+        poolLiquidity: '',
+        currentTick: 0,
+        sqrtRatioX96: '',
+        gasFee: '',
+      };
+    }
+  }
+  
+  return positionData;
 }

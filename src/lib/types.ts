@@ -1,4 +1,5 @@
 // Types for Uniswap V4 Position Manager
+import { DecreaseLiquidityResponse } from './trading-api-types';
 
 export interface PoolKey {
   currency0: string; // Currency address
@@ -29,6 +30,7 @@ export interface PositionData {
   poolKey?: PoolKey;
   positionInfo?: ParsedPositionInfo;
   liquidity?: string; // uint128 as string
+  decreaseSimulation?: DecreaseLiquidityResponse;
   // Legacy fields for compatibility
   token0?: string;
   token1?: string;
