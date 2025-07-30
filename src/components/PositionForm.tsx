@@ -5,6 +5,7 @@ import { useAccount, useChainId, useSendTransaction, useWaitForTransactionReceip
 import { fetchPositionDetailsWithSimulation, PositionData } from '@/lib/rpc';
 import { SUPPORTED_CHAINS } from '@/lib/chains';
 import { mainnet } from 'wagmi/chains';
+import { formatUnits } from 'ethers';
 
 type ProtocolVersion = 'v3' | 'v4';
 
@@ -102,7 +103,30 @@ export default function PositionForm() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+    <div className="space-y-6">
+      {/* Educational Disclaimer */}
+      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.19-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+              Educational Use Only
+            </h3>
+            <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+              <p>
+                This tool is purely for educational and testing purposes. No guarantees are made about the accuracy of information displayed. 
+                <strong className="font-semibold"> Never sign or submit any transaction that you do not fully understand. Use at your own risk.</strong> 
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Protocol Version */}
         <div>
@@ -383,31 +407,12 @@ export default function PositionForm() {
         </div>
       )}
 
-      {/* Debug Info - Remove in production */}
-      {positionData && (
-        <div className="mt-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Debug Info:</h4>
-          <div className="text-xs space-y-1">
-            <div>Has simulation: {positionData.decreaseSimulation ? 'Yes' : 'No'}</div>
-            <div>Wallet connected: {isConnected ? 'Yes' : 'No'}</div>
-            <div>Wallet address: {address || 'None'}</div>
-            <div>Protocol: {positionData.protocol}</div>
-            <div>Has poolKey: {positionData.poolKey ? 'Yes' : 'No'}</div>
-            <div>Has positionInfo: {positionData.positionInfo ? 'Yes' : 'No'}</div>
-            <div>Has liquidity: {positionData.liquidity ? 'Yes' : 'No'}</div>
-            <div>Has NFT metadata: {positionData.nftMetadata ? 'Yes' : 'No'}</div>
-            {positionData.decreaseSimulation && (
-              <div>Simulation success: {positionData.decreaseSimulation.success ? 'Yes' : 'No'}</div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Trading API Simulation Results */}
       {positionData?.decreaseSimulation && (
         <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            {formData.liquidityPercentage}% Liquidity Removal Simulation
+            Generated LP Removal Transaction
           </h3>
           
           {positionData.decreaseSimulation.success ? (
@@ -460,13 +465,13 @@ export default function PositionForm() {
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Gas Price:</span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {positionData.decreaseSimulation.decrease.gasPrice} wei
+                        {formatUnits(positionData.decreaseSimulation.decrease.gasPrice, 9)} gwei
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Value:</span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {positionData.decreaseSimulation.decrease.value} wei
+                        {formatUnits(positionData.decreaseSimulation.decrease.value, 18)} ETH
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -595,6 +600,7 @@ export default function PositionForm() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

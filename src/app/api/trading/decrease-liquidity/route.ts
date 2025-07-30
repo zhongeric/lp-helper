@@ -20,6 +20,7 @@ const getApiHeaders = (): HeadersInit => ({
   'sec-fetch-mode': 'cors',
   'sec-fetch-site': 'same-site',
   'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+  // Public facing Uniswap interface API key
   'x-api-key': 'JoyCGj29tT4pymvhaGciK4r1aIPvqW6W53xT1fwo',
   'x-app-version': '',
   'x-request-source': 'uniswap-web',
