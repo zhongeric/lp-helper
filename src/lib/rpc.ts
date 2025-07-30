@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { PositionData, PoolAndPositionInfo, ParsedPositionInfo, V4ContractAddresses, NFTMetadata } from './types';
 import { CHAIN_TO_ADDRESSES_MAP } from '@uniswap/sdk-core';
 import { tradingApiClient } from './trading-api';
-import { DecreaseLiquidityRequest } from './trading-api-types';
+import { DecreaseLiquidityRequest, DecreaseTransaction } from './trading-api-types';
 
 const RPC_URLS: Record<number, string> = {
   1: process.env.NEXT_PUBLIC_MAINNET_RPC_URL || '', // Mainnet
@@ -40,8 +40,8 @@ export function getRpcUrl(chainId: number): string {
 export async function makeRpcCall(
   chainId: number,
   method: string,
-  params: any[] = []
-): Promise<any> {
+  params: unknown[] = []
+): Promise<string> {
   const rpcUrl = getRpcUrl(chainId);
   
   const response = await fetch(rpcUrl, {
@@ -460,7 +460,7 @@ export async function fetchPositionDetailsWithSimulation(
         success: false,
         error: error instanceof Error ? error.message : 'Trading API simulation failed',
         requestId: '',
-        decrease: {} as any,
+        decrease: {} as DecreaseTransaction,
         poolLiquidity: '',
         currentTick: 0,
         sqrtRatioX96: '',

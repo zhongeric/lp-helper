@@ -1,4 +1,4 @@
-import { DecreaseLiquidityRequest, DecreaseLiquidityResponse } from './trading-api-types';
+import { DecreaseLiquidityRequest, DecreaseLiquidityResponse, DecreaseTransaction } from './trading-api-types';
 
 export class TradingApiClient {
   async decreaseLiquidity(request: DecreaseLiquidityRequest): Promise<DecreaseLiquidityResponse> {
@@ -24,6 +24,12 @@ export class TradingApiClient {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
+        requestId: '',
+        decrease: {} as DecreaseTransaction,
+        poolLiquidity: '',
+        currentTick: 0,
+        sqrtRatioX96: '',
+        gasFee: '',
       };
     }
   }

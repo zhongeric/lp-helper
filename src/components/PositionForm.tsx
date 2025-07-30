@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useAccount, useChainId, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
-import { fetchPositionDetailsWithSimulation, PositionData } from '@/lib/rpc';
+import { fetchPositionDetailsWithSimulation } from '@/lib/rpc';
+import { PositionData } from '@/lib/types';
 import { SUPPORTED_CHAINS } from '@/lib/chains';
 import { mainnet } from 'wagmi/chains';
 import { formatUnits } from 'ethers';
