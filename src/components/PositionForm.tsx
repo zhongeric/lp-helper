@@ -220,6 +220,12 @@ export default function PositionForm() {
                 <span className="text-sm font-medium text-gray-900 dark:text-white">{positionData.fee / 10000}%</span>
               </div>
             )}
+            {positionData.liquidity && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Liquidity:</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{positionData.liquidity}</span>
+              </div>
+            )}
             {positionData.tickLower !== undefined && (
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600 dark:text-gray-400">Tick Lower:</span>

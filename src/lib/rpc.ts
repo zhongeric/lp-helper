@@ -103,8 +103,11 @@ async function fetchV4PositionDetails(
   }
 
   try {
-    // Call getPoolAndPositionInfo
-    const poolAndPositionInfo = await getPoolAndPositionInfo(positionId, chainId, positionManagerAddress);
+    // Make both RPC calls in parallel for better performance
+    const [poolAndPositionInfo, liquidity] = await Promise.all([
+      getPoolAndPositionInfo(positionId, chainId, positionManagerAddress),
+      getPositionLiquidity(positionId, chainId, positionManagerAddress)
+    ]);
     
     // Parse the position info
     const parsedPositionInfo = parsePositionInfo(poolAndPositionInfo.info);
@@ -115,6 +118,7 @@ async function fetchV4PositionDetails(
       chainId,
       poolKey: poolAndPositionInfo.poolKey,
       positionInfo: parsedPositionInfo,
+      liquidity,
       // Map to legacy fields for compatibility
       token0: poolAndPositionInfo.poolKey.currency0,
       token1: poolAndPositionInfo.poolKey.currency1,
@@ -128,8 +132,8 @@ async function fetchV4PositionDetails(
   }
 }
 
-// ABI for getPoolAndPositionInfo function
-const GET_POOL_AND_POSITION_INFO_ABI = [
+// ABI for V4 Position Manager functions
+const V4_POSITION_MANAGER_ABI = [
   {
     "name": "getPoolAndPositionInfo",
     "outputs": [
@@ -150,6 +154,13 @@ const GET_POOL_AND_POSITION_INFO_ABI = [
     "stateMutability": "view",
     "type": "function",
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}]
+  },
+  {
+    "name": "getPositionLiquidity",
+    "outputs": [{"internalType": "uint128", "name": "liquidity", "type": "uint128"}],
+    "stateMutability": "view",
+    "type": "function",
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}]
   }
 ];
 
@@ -159,7 +170,7 @@ async function getPoolAndPositionInfo(
   positionManagerAddress: string
 ): Promise<PoolAndPositionInfo> {
   // Create contract interface
-  const contractInterface = new ethers.Interface(GET_POOL_AND_POSITION_INFO_ABI);
+  const contractInterface = new ethers.Interface(V4_POSITION_MANAGER_ABI);
   
   // Encode the function call data
   const callData = contractInterface.encodeFunctionData('getPoolAndPositionInfo', [positionId]);
@@ -186,6 +197,33 @@ async function getPoolAndPositionInfo(
     },
     info: decodedResult.info.toString(),
   };
+}
+
+async function getPositionLiquidity(
+  positionId: string,
+  chainId: number,
+  positionManagerAddress: string
+): Promise<string> {
+  // Create contract interface
+  const contractInterface = new ethers.Interface(V4_POSITION_MANAGER_ABI);
+  
+  // Encode the function call data
+  const callData = contractInterface.encodeFunctionData('getPositionLiquidity', [positionId]);
+  
+  // Make the eth_call
+  const result = await makeRpcCall(chainId, 'eth_call', [
+    {
+      to: positionManagerAddress,
+      data: callData,
+    },
+    'latest'
+  ]);
+  
+  // Decode the result
+  const decodedResult = contractInterface.decodeFunctionResult('getPositionLiquidity', result);
+  
+  // Return liquidity as string to preserve precision
+  return decodedResult.liquidity.toString();
 }
 
 function parsePositionInfo(infoHex: string): ParsedPositionInfo {

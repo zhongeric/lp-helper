@@ -28,6 +28,7 @@ export interface PositionData {
   chainId: number;
   poolKey?: PoolKey;
   positionInfo?: ParsedPositionInfo;
+  liquidity?: string; // uint128 as string
   // Legacy fields for compatibility
   token0?: string;
   token1?: string;
