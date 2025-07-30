@@ -6,22 +6,16 @@ import {
   RainbowKitProvider,
 } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
-import {
-  mainnet,
-  polygon,
-  optimism,
-  arbitrum,
-  base,
-} from 'wagmi/chains';
+import { SUPPORTED_CHAINS } from '@/lib/chains';
 import {
   QueryClientProvider,
   QueryClient,
 } from "@tanstack/react-query";
 
 const config = getDefaultConfig({
-  appName: 'My RainbowKit App',
+  appName: 'Uniswap Position Tracker',
   projectId: 'YOUR_PROJECT_ID',
-  chains: [mainnet, polygon, optimism, arbitrum, base],
+  chains: SUPPORTED_CHAINS,
   ssr: true,
 });
 

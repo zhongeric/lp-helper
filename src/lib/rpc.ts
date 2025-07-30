@@ -1,24 +1,27 @@
-import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
-
-export interface PositionData {
-  id: string;
-  protocol: 'v3' | 'v4';
-  chainId: number;
-  token0?: string;
-  token1?: string;
-  fee?: number;
-  liquidity?: string;
-  tickLower?: number;
-  tickUpper?: number;
-  // Add more fields as needed
-}
+import { ethers } from 'ethers';
+import { PositionData, PoolAndPositionInfo, ParsedPositionInfo, V4ContractAddresses } from './types';
+import { CHAIN_TO_ADDRESSES_MAP } from '@uniswap/sdk-core';
 
 const RPC_URLS: Record<number, string> = {
-  [mainnet.id]: process.env.NEXT_PUBLIC_MAINNET_RPC_URL || '',
-  [polygon.id]: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || '',
-  [optimism.id]: process.env.NEXT_PUBLIC_OPTIMISM_RPC_URL || '',
-  [arbitrum.id]: process.env.NEXT_PUBLIC_ARBITRUM_RPC_URL || '',
-  [base.id]: process.env.NEXT_PUBLIC_BASE_RPC_URL || '',
+  1: process.env.NEXT_PUBLIC_MAINNET_RPC_URL || '', // Mainnet
+  8453: process.env.NEXT_PUBLIC_BASE_RPC_URL || '', // Base
+  130: process.env.NEXT_PUBLIC_UNICHAIN_RPC_URL || '', // Unichain
+};
+
+// Uniswap V4 contract addresses
+const V4_CONTRACT_ADDRESSES: Record<number, V4ContractAddresses> = {
+  1: { // Mainnet
+    PositionManager: CHAIN_TO_ADDRESSES_MAP[1].v4PositionManagerAddress!, 
+    PoolManager: CHAIN_TO_ADDRESSES_MAP[1].v4PoolManagerAddress!,
+  },
+  8453: { // Base
+    PositionManager: CHAIN_TO_ADDRESSES_MAP[8453].v4PositionManagerAddress!,
+    PoolManager: CHAIN_TO_ADDRESSES_MAP[8453].v4PoolManagerAddress!,
+  },
+  130: { // Unichain
+    PositionManager: CHAIN_TO_ADDRESSES_MAP[130].v4PositionManagerAddress!,
+    PoolManager: CHAIN_TO_ADDRESSES_MAP[130].v4PoolManagerAddress!,
+  },
 };
 
 export function getRpcUrl(chainId: number): string {
@@ -89,23 +92,145 @@ async function fetchV4PositionDetails(
   positionId: string,
   chainId: number
 ): Promise<PositionData> {
-  // TODO: Implement V4-specific contract calls
-  // You'll need to:
-  // 1. Get the PositionManager contract address for the chain
-  // 2. Call the appropriate methods to get position data
-  // 3. Parse and return the structured data
+  const contractAddresses = V4_CONTRACT_ADDRESSES[chainId];
+  if (!contractAddresses) {
+    throw new Error(`V4 contracts not supported on chain ${chainId}`);
+  }
+
+  const positionManagerAddress = contractAddresses.PositionManager;
+  if (!positionManagerAddress || positionManagerAddress === '0x') {
+    throw new Error(`V4 Position Manager address not configured for chain ${chainId}`);
+  }
+
+  try {
+    // Call getPoolAndPositionInfo
+    const poolAndPositionInfo = await getPoolAndPositionInfo(positionId, chainId, positionManagerAddress);
+    
+    // Parse the position info
+    const parsedPositionInfo = parsePositionInfo(poolAndPositionInfo.info);
+    
+    return {
+      id: positionId,
+      protocol: 'v4',
+      chainId,
+      poolKey: poolAndPositionInfo.poolKey,
+      positionInfo: parsedPositionInfo,
+      // Map to legacy fields for compatibility
+      token0: poolAndPositionInfo.poolKey.currency0,
+      token1: poolAndPositionInfo.poolKey.currency1,
+      fee: poolAndPositionInfo.poolKey.fee,
+      tickLower: parsedPositionInfo.tickLower,
+      tickUpper: parsedPositionInfo.tickUpper,
+    };
+  } catch (error) {
+    console.error(`Error fetching V4 position ${positionId} on chain ${chainId}:`, error);
+    throw error;
+  }
+}
+
+// ABI for getPoolAndPositionInfo function
+const GET_POOL_AND_POSITION_INFO_ABI = [
+  {
+    "name": "getPoolAndPositionInfo",
+    "outputs": [
+      {
+        "components": [
+          {"internalType": "Currency", "name": "currency0", "type": "address"},
+          {"internalType": "Currency", "name": "currency1", "type": "address"},
+          {"internalType": "uint24", "name": "fee", "type": "uint24"},
+          {"internalType": "int24", "name": "tickSpacing", "type": "int24"},
+          {"internalType": "contract IHooks", "name": "hooks", "type": "address"}
+        ],
+        "internalType": "struct PoolKey",
+        "name": "poolKey",
+        "type": "tuple"
+      },
+      {"internalType": "PositionInfo", "name": "info", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}]
+  }
+];
+
+async function getPoolAndPositionInfo(
+  positionId: string,
+  chainId: number,
+  positionManagerAddress: string
+): Promise<PoolAndPositionInfo> {
+  // Create contract interface
+  const contractInterface = new ethers.Interface(GET_POOL_AND_POSITION_INFO_ABI);
   
-  console.log(`Fetching V4 position ${positionId} on chain ${chainId}`);
+  // Encode the function call data
+  const callData = contractInterface.encodeFunctionData('getPoolAndPositionInfo', [positionId]);
   
-  // Placeholder implementation - replace with actual contract calls
-  const mockData: PositionData = {
-    id: positionId,
-    protocol: 'v4',
-    chainId,
-    // Add real data from contract calls
+  // Make the eth_call
+  const result = await makeRpcCall(chainId, 'eth_call', [
+    {
+      to: positionManagerAddress,
+      data: callData,
+    },
+    'latest'
+  ]);
+  
+  // Decode the result
+  const decodedResult = contractInterface.decodeFunctionResult('getPoolAndPositionInfo', result);
+  
+  return {
+    poolKey: {
+      currency0: decodedResult.poolKey.currency0,
+      currency1: decodedResult.poolKey.currency1,
+      fee: Number(decodedResult.poolKey.fee),
+      tickSpacing: Number(decodedResult.poolKey.tickSpacing),
+      hooks: decodedResult.poolKey.hooks,
+    },
+    info: decodedResult.info.toString(),
   };
+}
+
+function parsePositionInfo(infoHex: string): ParsedPositionInfo {
+  // Convert hex string to BigInt for bit manipulation
+  const info = BigInt(infoHex);
   
-  return mockData;
+  /**
+   * V4 PositionInfo bit layout (from least significant bit):
+   * Layout: 200 bits poolId | 24 bits tickUpper | 24 bits tickLower | 8 bits hasSubscriber
+   * 
+   * Fields from LSB to MSB:
+   * - hasSubscriber: 8 bits (bits 0-7)
+   * - tickLower: 24 bits (bits 8-31) - int24
+   * - tickUpper: 24 bits (bits 32-55) - int24
+   * - poolId: 200 bits (bits 56-255) - bytes25 (truncated bytes32)
+   */
+  
+  // Extract hasSubscriber (8 bits, LSB)
+  const hasSubscriber = (info & 0xFFn) !== 0n;
+  
+  // Extract tickLower (24 bits, bits 8-31)
+  const tickLowerRaw = (info >> 8n) & 0xFFFFFFn; // 24 bits mask
+  // Convert from unsigned to signed int24 (two's complement)
+  const tickLower = tickLowerRaw >= (1n << 23n) 
+    ? Number(tickLowerRaw - (1n << 24n)) 
+    : Number(tickLowerRaw);
+  
+  // Extract tickUpper (24 bits, bits 32-55)
+  const tickUpperRaw = (info >> 32n) & 0xFFFFFFn; // 24 bits mask
+  // Convert from unsigned to signed int24 (two's complement)
+  const tickUpper = tickUpperRaw >= (1n << 23n) 
+    ? Number(tickUpperRaw - (1n << 24n)) 
+    : Number(tickUpperRaw);
+  
+  // Extract poolId (200 bits, bits 56-255)
+  const poolId = (info >> 56n) & ((1n << 200n) - 1n);
+  // Convert to hex string and pad to 50 characters (25 bytes * 2)
+  const poolIdHex = '0x' + poolId.toString(16).padStart(50, '0');
+  
+  return {
+    hasSubscriber,
+    tickLower,
+    tickUpper,
+    poolId: poolIdHex,
+  };
 }
 
 async function fetchV3PositionDetails(
@@ -127,40 +252,19 @@ async function fetchV3PositionDetails(
   return mockData;
 }
 
-// Helper function to get contract addresses for different protocols and chains
-export function getContractAddress(
-  protocol: 'v3' | 'v4',
+// Helper function to get V4 contract addresses
+export function getV4ContractAddress(
   chainId: number,
-  contractType: 'PositionManager' | 'Factory' | 'Router'
+  contractType: keyof V4ContractAddresses
 ): string {
-  // TODO: Add actual contract addresses for each protocol/chain combination
-  const addresses: Record<string, Record<number, Record<string, string>>> = {
-    v3: {
-      [mainnet.id]: {
-        PositionManager: '0x', // Add actual address
-        Factory: '0x', // Add actual address
-        Router: '0x', // Add actual address
-      },
-      // Add other chains
-    },
-    v4: {
-      [mainnet.id]: {
-        PositionManager: '0x', // Add actual address
-        Factory: '0x', // Add actual address
-        Router: '0x', // Add actual address
-      },
-      // Add other chains
-    },
-  };
-
-  const protocolAddresses = addresses[protocol]?.[chainId];
-  if (!protocolAddresses) {
-    throw new Error(`Contract addresses not configured for ${protocol} on chain ${chainId}`);
+  const contractAddresses = V4_CONTRACT_ADDRESSES[chainId];
+  if (!contractAddresses) {
+    throw new Error(`V4 contracts not supported on chain ${chainId}`);
   }
 
-  const address = protocolAddresses[contractType];
+  const address = contractAddresses[contractType];
   if (!address || address === '0x') {
-    throw new Error(`${contractType} address not configured for ${protocol} on chain ${chainId}`);
+    throw new Error(`V4 ${contractType} address not configured for chain ${chainId}`);
   }
 
   return address;

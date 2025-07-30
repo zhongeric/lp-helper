@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { useAccount, useChainId } from 'wagmi';
-import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
 import { fetchPositionDetails, PositionData } from '@/lib/rpc';
-
-const SUPPORTED_CHAINS = [mainnet, polygon, optimism, arbitrum, base];
+import { SUPPORTED_CHAINS } from '@/lib/chains';
+import { mainnet } from 'wagmi/chains';
 
 type ProtocolVersion = 'v3' | 'v4';
 
@@ -221,10 +220,42 @@ export default function PositionForm() {
                 <span className="text-sm font-medium text-gray-900 dark:text-white">{positionData.fee / 10000}%</span>
               </div>
             )}
-            {positionData.liquidity && (
+            {positionData.tickLower !== undefined && (
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Liquidity:</span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">{positionData.liquidity}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Tick Lower:</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{positionData.tickLower}</span>
+              </div>
+            )}
+            {positionData.tickUpper !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Tick Upper:</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{positionData.tickUpper}</span>
+              </div>
+            )}
+            {positionData.poolKey?.tickSpacing && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Tick Spacing:</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{positionData.poolKey.tickSpacing}</span>
+              </div>
+            )}
+            {positionData.positionInfo?.poolId && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Pool ID:</span>
+                <span className="text-xs font-medium text-gray-900 dark:text-white font-mono break-all">{positionData.positionInfo.poolId}</span>
+              </div>
+            )}
+            {positionData.positionInfo?.hasSubscriber !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Has Subscriber:</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  {positionData.positionInfo.hasSubscriber ? 'Yes' : 'No'}
+                </span>
+              </div>
+            )}
+            {positionData.poolKey?.hooks && positionData.poolKey.hooks !== '0x0000000000000000000000000000000000000000' && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Hooks:</span>
+                <span className="text-xs font-medium text-gray-900 dark:text-white font-mono break-all">{positionData.poolKey.hooks}</span>
               </div>
             )}
           </div>
