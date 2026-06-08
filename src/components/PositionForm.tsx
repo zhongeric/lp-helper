@@ -15,6 +15,7 @@ interface FormData {
   positionId: string;
   chainId: number;
   liquidityPercentage: number;
+  rpcUrl: string;
 }
 
 export default function PositionForm() {
@@ -26,6 +27,7 @@ export default function PositionForm() {
     positionId: '',
     chainId: mainnet.id, // Will be updated by useEffect
     liquidityPercentage: 100,
+    rpcUrl: '',
   });
   
   // Update chain selection when wallet connects
@@ -93,7 +95,8 @@ export default function PositionForm() {
         formData.protocolVersion,
         formData.chainId,
         address, // Pass wallet address for Trading API simulation
-        formData.liquidityPercentage // Pass liquidity percentage
+        formData.liquidityPercentage, // Pass liquidity percentage
+        formData.rpcUrl // Optional user-supplied RPC URL override
       );
       setPositionData(data);
     } catch (err) {
@@ -193,6 +196,24 @@ export default function PositionForm() {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Custom RPC URL Override */}
+        <div>
+          <label htmlFor="rpcUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            RPC URL <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            id="rpcUrl"
+            type="url"
+            value={formData.rpcUrl}
+            onChange={(e) => setFormData(prev => ({ ...prev, rpcUrl: e.target.value }))}
+            placeholder="https://... (overrides the default RPC for this chain)"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Leave blank to use the pre-configured RPC endpoint. When provided, this URL is used for all onchain reads on the selected chain.
+          </p>
         </div>
 
         {/* Liquidity Percentage Selector */}

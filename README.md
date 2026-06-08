@@ -61,6 +61,11 @@ NEXT_PUBLIC_UNICHAIN_RPC_URL=your_unichain_rpc_url
 UNISWAP_API_KEY=your_uniswap_api_key
 ```
 
+> **RPC URL override**: The optional "RPC URL" field in the form lets you supply your
+> own endpoint at runtime. When filled in, it takes precedence over the pre-configured
+> `NEXT_PUBLIC_*_RPC_URL` values for all onchain reads on the selected chain. Leave it
+> blank to fall back to the env-configured endpoint.
+
 5. Run the development server:
 ```bash
 npm run dev

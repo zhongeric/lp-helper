@@ -26,7 +26,13 @@ const V4_CONTRACT_ADDRESSES: Record<number, V4ContractAddresses> = {
   },
 };
 
-export function getRpcUrl(chainId: number): string {
+export function getRpcUrl(chainId: number, rpcUrlOverride?: string): string {
+  // A user-supplied RPC URL always takes precedence over pre-configured env URLs.
+  const override = rpcUrlOverride?.trim();
+  if (override) {
+    return override;
+  }
+
   const url = RPC_URLS[chainId];
   if (!url) {
     throw new Error(`RPC URL not configured for chain ID: ${chainId}`);
@@ -40,9 +46,10 @@ export function getRpcUrl(chainId: number): string {
 export async function makeRpcCall(
   chainId: number,
   method: string,
-  params: unknown[] = []
+  params: unknown[] = [],
+  rpcUrlOverride?: string
 ): Promise<string> {
-  const rpcUrl = getRpcUrl(chainId);
+  const rpcUrl = getRpcUrl(chainId, rpcUrlOverride);
   
   const response = await fetch(rpcUrl, {
     method: 'POST',
@@ -73,14 +80,15 @@ export async function makeRpcCall(
 export async function fetchPositionDetails(
   positionId: string,
   protocolVersion: 'v3' | 'v4',
-  chainId: number
+  chainId: number,
+  rpcUrlOverride?: string
 ): Promise<PositionData> {
   try {
     // TODO: Implement the actual contract calls based on protocol version
     // This is a placeholder for the RPC implementation
-    
+
     if (protocolVersion === 'v4') {
-      return await fetchV4PositionDetails(positionId, chainId);
+      return await fetchV4PositionDetails(positionId, chainId, rpcUrlOverride);
     } else {
       return await fetchV3PositionDetails(positionId, chainId);
     }
@@ -92,7 +100,8 @@ export async function fetchPositionDetails(
 
 async function fetchV4PositionDetails(
   positionId: string,
-  chainId: number
+  chainId: number,
+  rpcUrlOverride?: string
 ): Promise<PositionData> {
   const contractAddresses = V4_CONTRACT_ADDRESSES[chainId];
   if (!contractAddresses) {
@@ -107,17 +116,17 @@ async function fetchV4PositionDetails(
   try {
     // Make core RPC calls in parallel for better performance
     const [poolAndPositionInfo, liquidity] = await Promise.all([
-      getPoolAndPositionInfo(positionId, chainId, positionManagerAddress),
-      getPositionLiquidity(positionId, chainId, positionManagerAddress)
+      getPoolAndPositionInfo(positionId, chainId, positionManagerAddress, rpcUrlOverride),
+      getPositionLiquidity(positionId, chainId, positionManagerAddress, rpcUrlOverride)
     ]);
-    
+
     // Parse the position info
     const parsedPositionInfo = parsePositionInfo(poolAndPositionInfo.info);
-    
+
     // Try to fetch NFT metadata separately to avoid failing the entire request
     let nftMetadata: NFTMetadata | undefined;
     try {
-      const tokenURI = await getTokenURI(positionId, chainId, positionManagerAddress);
+      const tokenURI = await getTokenURI(positionId, chainId, positionManagerAddress, rpcUrlOverride);
       nftMetadata = parseNFTMetadata(tokenURI) || undefined;
     } catch (nftError) {
       console.warn('Failed to fetch NFT metadata:', nftError);
@@ -187,14 +196,15 @@ const V4_POSITION_MANAGER_ABI = [
 async function getPoolAndPositionInfo(
   positionId: string,
   chainId: number,
-  positionManagerAddress: string
+  positionManagerAddress: string,
+  rpcUrlOverride?: string
 ): Promise<PoolAndPositionInfo> {
   // Create contract interface
   const contractInterface = new ethers.Interface(V4_POSITION_MANAGER_ABI);
-  
+
   // Encode the function call data
   const callData = contractInterface.encodeFunctionData('getPoolAndPositionInfo', [positionId]);
-  
+
   // Make the eth_call
   const result = await makeRpcCall(chainId, 'eth_call', [
     {
@@ -202,7 +212,7 @@ async function getPoolAndPositionInfo(
       data: callData,
     },
     'latest'
-  ]);
+  ], rpcUrlOverride);
   
   // Decode the result
   const decodedResult = contractInterface.decodeFunctionResult('getPoolAndPositionInfo', result);
@@ -222,14 +232,15 @@ async function getPoolAndPositionInfo(
 async function getPositionLiquidity(
   positionId: string,
   chainId: number,
-  positionManagerAddress: string
+  positionManagerAddress: string,
+  rpcUrlOverride?: string
 ): Promise<string> {
   // Create contract interface
   const contractInterface = new ethers.Interface(V4_POSITION_MANAGER_ABI);
-  
+
   // Encode the function call data
   const callData = contractInterface.encodeFunctionData('getPositionLiquidity', [positionId]);
-  
+
   // Make the eth_call
   const result = await makeRpcCall(chainId, 'eth_call', [
     {
@@ -237,7 +248,7 @@ async function getPositionLiquidity(
       data: callData,
     },
     'latest'
-  ]);
+  ], rpcUrlOverride);
   
   // Decode the result
   const decodedResult = contractInterface.decodeFunctionResult('getPositionLiquidity', result);
@@ -249,18 +260,19 @@ async function getPositionLiquidity(
 async function getTokenURI(
   positionId: string,
   chainId: number,
-  positionManagerAddress: string
+  positionManagerAddress: string,
+  rpcUrlOverride?: string
 ): Promise<string> {
   try {
     console.log('Fetching tokenURI for:', { positionId, chainId, positionManagerAddress });
-    
+
     // Create contract interface
     const contractInterface = new ethers.Interface(V4_POSITION_MANAGER_ABI);
-    
+
     // Encode the function call data
     const callData = contractInterface.encodeFunctionData('tokenURI', [positionId]);
     console.log('TokenURI call data:', callData);
-    
+
     // Make the eth_call
     const result = await makeRpcCall(chainId, 'eth_call', [
       {
@@ -268,7 +280,7 @@ async function getTokenURI(
         data: callData,
       },
       'latest'
-    ]);
+    ], rpcUrlOverride);
     
     console.log('TokenURI raw result:', result);
     
@@ -433,10 +445,11 @@ export async function fetchPositionDetailsWithSimulation(
   protocolVersion: 'v3' | 'v4',
   chainId: number,
   walletAddress?: string,
-  liquidityPercentage: number = 100
+  liquidityPercentage: number = 100,
+  rpcUrlOverride?: string
 ): Promise<PositionData> {
   // First, fetch the basic position data
-  const positionData = await fetchPositionDetails(positionId, protocolVersion, chainId);
+  const positionData = await fetchPositionDetails(positionId, protocolVersion, chainId, rpcUrlOverride);
   
   // If wallet address is provided and it's V4, fetch decrease liquidity simulation
   if (walletAddress && protocolVersion === 'v4' && positionData.poolKey && positionData.positionInfo && positionData.liquidity) {
